@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hotel_user
+      POSTGRES_PASSWORD: hotel_password
+      POSTGRES_DB: hotel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Автоматический накат миграций при старте
+  migration:
+    image: ghcr.io/kukymbr/goose-docker:3.28.0
+    environment:
+      - GOOSE_DRIVER=postgres
+      - GOOSE_DBSTRING=host=postgres port=5432 user=hotel_user password=hotel_password dbname=hotel_db sslmode=disable
+      - GOOSE_COMMAND=up # up
+    volumes:
+      - ./database/migrations:/migrations
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
