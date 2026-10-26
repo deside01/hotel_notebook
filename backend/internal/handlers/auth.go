@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/deside01/hotel_notebook/backend/internal/db"
@@ -19,31 +21,52 @@ func NewAuthHandler(repo db.Querier) *AuthHandler {
 	}
 }
 
-type regBody struct {
+type authBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
-	var body regBody
-	json.NewDecoder(r.Body).Decode(&body)
+	var body authBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		utils.Err(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
 
 	if body.Email == "" {
-		utils.Err(w, 400, "email field is required")
+		utils.Err(w, http.StatusBadRequest, "email field is required")
 		return
 	}
 
 	if body.Password == "" {
-		utils.Err(w, 400, "password field is required")
+		utils.Err(w, http.StatusBadRequest, "password field is required")
 		return
 	}
 
-	pass, _ := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	fetchedUser, err := h.repo.FindUserByEmail(r.Context(), body.Email)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		utils.Err(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if fetchedUser.Email != "" {
+		utils.Err(w, http.StatusConflict, "user already exists")
+		return
+	}
 
-	user, _ := h.repo.CreateUser(r.Context(), db.CreateUserParams{
+	pass, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		utils.Err(w, http.StatusInternalServerError, "failed to process password")
+		return
+	}
+
+	user, err := h.repo.CreateUser(r.Context(), db.CreateUserParams{
 		Email:    body.Email,
 		Password: string(pass),
 	})
+	if err != nil {
+		utils.Err(w, http.StatusInternalServerError, "failed to create user")
+		return
+	}
 
-	utils.JSON(w, 201, user)
+	utils.JSON(w, http.StatusCreated, user)
 }

@@ -7,14 +7,16 @@ import (
 )
 
 func JSON(w http.ResponseWriter, code int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+
 	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Неудалось преобразовать в JSON: %v", err)
-		w.WriteHeader(500)
+		log.Printf("Не удалось преобразовать в JSON: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"internal server error"}`))
 		return
 	}
 
-	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(data)
 }
