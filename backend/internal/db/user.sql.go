@@ -37,7 +37,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const findUserByEmail = `-- name: FindUserByEmail :one
-SELECT 
+SELECT
+    id,
     email,
     password
 FROM users
@@ -45,6 +46,7 @@ WHERE email = $1
 `
 
 type FindUserByEmailRow struct {
+	ID       int64  `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -52,6 +54,6 @@ type FindUserByEmailRow struct {
 func (q *Queries) FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, findUserByEmail, email)
 	var i FindUserByEmailRow
-	err := row.Scan(&i.Email, &i.Password)
+	err := row.Scan(&i.ID, &i.Email, &i.Password)
 	return i, err
 }

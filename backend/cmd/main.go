@@ -25,7 +25,7 @@ func main() {
 
 	querier := db.New(conn)
 
-	authHandler := handlers.NewAuthHandler(querier)
+	authHandler := handlers.NewAuthHandler(querier, cfg.SecretKey)
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -38,6 +38,7 @@ func main() {
 	}))
 
 	r.Post("/auth/registration", authHandler.Registration)
+	r.Post("/auth/login", authHandler.Login)
 
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
 		log.Fatal(err)

@@ -7,7 +7,8 @@ VALUES ($1, $2)
 RETURNING *;
 
 -- name: FindUserByEmail :one
-SELECT 
+SELECT
+    id,
     email,
     password
 FROM users
