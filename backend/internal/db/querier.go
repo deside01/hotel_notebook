@@ -11,8 +11,12 @@ import (
 type Querier interface {
 	CreateGuestRecord(ctx context.Context, arg CreateGuestRecordParams) (GuestRecord, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteGuestRecordByID(ctx context.Context, id int64) error
 	FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error)
-	GetGuestRecordByID(ctx context.Context, id int64) (GetGuestRecordByIDRow, error)
+	GetGuestRecordByID(ctx context.Context, id int64) (GuestRecord, error)
+	GetGuestRecordsByUserID(ctx context.Context, userID int64) ([]GuestRecord, error)
+	SearchGuests(ctx context.Context, arg SearchGuestsParams) ([]GuestRecord, error)
+	UpdateGuestRecord(ctx context.Context, arg UpdateGuestRecordParams) error
 }
 
 var _ Querier = (*Queries)(nil)

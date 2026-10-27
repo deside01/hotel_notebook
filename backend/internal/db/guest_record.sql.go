@@ -69,24 +69,143 @@ func (q *Queries) CreateGuestRecord(ctx context.Context, arg CreateGuestRecordPa
 	return i, err
 }
 
-const getGuestRecordByID = `-- name: GetGuestRecordByID :one
-SELECT 
-    id,
-    user_id,
-    phone
-FROM guest_records
+const deleteGuestRecordByID = `-- name: DeleteGuestRecordByID :exec
+DELETE FROM guest_records
 WHERE id = $1
 `
 
-type GetGuestRecordByIDRow struct {
-	ID     int64  `json:"id"`
-	UserID int64  `json:"user_id"`
-	Phone  string `json:"phone"`
+func (q *Queries) DeleteGuestRecordByID(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteGuestRecordByID, id)
+	return err
 }
 
-func (q *Queries) GetGuestRecordByID(ctx context.Context, id int64) (GetGuestRecordByIDRow, error) {
+const getGuestRecordByID = `-- name: GetGuestRecordByID :one
+SELECT id, user_id, full_name, phone, room, check_in, check_out, note, created_at, updated_at FROM guest_records
+WHERE id = $1
+`
+
+func (q *Queries) GetGuestRecordByID(ctx context.Context, id int64) (GuestRecord, error) {
 	row := q.db.QueryRow(ctx, getGuestRecordByID, id)
-	var i GetGuestRecordByIDRow
-	err := row.Scan(&i.ID, &i.UserID, &i.Phone)
+	var i GuestRecord
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.FullName,
+		&i.Phone,
+		&i.Room,
+		&i.CheckIn,
+		&i.CheckOut,
+		&i.Note,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
+}
+
+const getGuestRecordsByUserID = `-- name: GetGuestRecordsByUserID :many
+SELECT id, user_id, full_name, phone, room, check_in, check_out, note, created_at, updated_at FROM guest_records
+WHERE user_id = $1
+`
+
+func (q *Queries) GetGuestRecordsByUserID(ctx context.Context, userID int64) ([]GuestRecord, error) {
+	rows, err := q.db.Query(ctx, getGuestRecordsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GuestRecord
+	for rows.Next() {
+		var i GuestRecord
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FullName,
+			&i.Phone,
+			&i.Room,
+			&i.CheckIn,
+			&i.CheckOut,
+			&i.Note,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchGuests = `-- name: SearchGuests :many
+SELECT id, user_id, full_name, phone, room, check_in, check_out, note, created_at, updated_at FROM guest_records
+WHERE 
+    ($1::text = '' OR full_name ILIKE CONCAT('%', $1::text, '%'))
+    AND ($2::text = '' OR phone LIKE CONCAT('%', $2::text, '%'))
+    AND ($3::text = '' OR room ILIKE CONCAT($3::text, '%'))
+ORDER BY created_at DESC
+LIMIT $5::int
+OFFSET $4::int
+`
+
+type SearchGuestsParams struct {
+	FullName  string `json:"full_name"`
+	Phone     string `json:"phone"`
+	Room      string `json:"room"`
+	ReqOffset int32  `json:"req_offset"`
+	ReqLimit  int32  `json:"req_limit"`
+}
+
+func (q *Queries) SearchGuests(ctx context.Context, arg SearchGuestsParams) ([]GuestRecord, error) {
+	rows, err := q.db.Query(ctx, searchGuests,
+		arg.FullName,
+		arg.Phone,
+		arg.Room,
+		arg.ReqOffset,
+		arg.ReqLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GuestRecord
+	for rows.Next() {
+		var i GuestRecord
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FullName,
+			&i.Phone,
+			&i.Room,
+			&i.CheckIn,
+			&i.CheckOut,
+			&i.Note,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateGuestRecord = `-- name: UpdateGuestRecord :exec
+UPDATE guest_records
+SET check_out = $1, updated_at = NOW()
+WHERE id = $2
+`
+
+type UpdateGuestRecordParams struct {
+	CheckOut pgtype.Date `json:"check_out"`
+	ID       int64       `json:"id"`
+}
+
+func (q *Queries) UpdateGuestRecord(ctx context.Context, arg UpdateGuestRecordParams) error {
+	_, err := q.db.Exec(ctx, updateGuestRecord, arg.CheckOut, arg.ID)
+	return err
 }
