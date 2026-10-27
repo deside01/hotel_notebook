@@ -166,18 +166,41 @@ func (h *GuestRecordHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.FullName == "" || body.Phone == "" || body.Room == "" || body.CheckIn == "" || body.CheckOut == "" {
+		utils.Err(w, http.StatusBadRequest, "required fields are missing")
+		return
+	}
+
+	checkIn, err := time.Parse("2006-01-02", body.CheckIn)
+	if err != nil {
+		utils.Err(w, http.StatusBadRequest, "invalid check_in field")
+		return
+	}
+
 	checkOut, err := time.Parse("2006-01-02", body.CheckOut)
 	if err != nil {
 		utils.Err(w, http.StatusBadRequest, "invalid check_out field")
 		return
 	}
+	if !checkOut.After(checkIn) {
+		utils.Err(w, http.StatusBadRequest, "check_out must be after check_in")
+		return
+	}
 
 	err = h.repo.UpdateGuestRecord(r.Context(), db.UpdateGuestRecordParams{
-		ID: record.ID,
+		ID:       record.ID,
+		FullName: body.FullName,
+		Phone:    body.Phone,
+		Room:     body.Room,
+		CheckIn: pgtype.Date{
+			Time:  checkIn,
+			Valid: true,
+		},
 		CheckOut: pgtype.Date{
 			Time:  checkOut,
 			Valid: true,
 		},
+		Note: body.Note,
 	})
 	if err != nil {
 		utils.Err(w, http.StatusInternalServerError, err.Error())
@@ -223,6 +246,7 @@ func (h *GuestRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *GuestRecordHandler) Search(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(int)
 	query := r.URL.Query()
 	limitStr := query.Get("limit")
 	offsetStr := query.Get("offset")
@@ -238,6 +262,7 @@ func (h *GuestRecordHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.repo.SearchGuests(r.Context(), db.SearchGuestsParams{
+		UserID:    int64(userID),
 		FullName:  query.Get("full_name"),
 		Phone:     query.Get("phone"),
 		Room:      query.Get("room"),

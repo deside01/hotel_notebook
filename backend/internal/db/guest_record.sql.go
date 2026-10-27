@@ -141,15 +141,17 @@ func (q *Queries) GetGuestRecordsByUserID(ctx context.Context, userID int64) ([]
 const searchGuests = `-- name: SearchGuests :many
 SELECT id, user_id, full_name, phone, room, check_in, check_out, note, created_at, updated_at FROM guest_records
 WHERE 
-    ($1::text = '' OR full_name ILIKE CONCAT('%', $1::text, '%'))
-    AND ($2::text = '' OR phone LIKE CONCAT('%', $2::text, '%'))
-    AND ($3::text = '' OR room ILIKE CONCAT($3::text, '%'))
+    user_id = $1
+    AND ($2::text = '' OR full_name ILIKE CONCAT('%', $2::text, '%'))
+    AND ($3::text = '' OR phone LIKE CONCAT('%', $3::text, '%'))
+    AND ($4::text = '' OR room ILIKE CONCAT($4::text, '%'))
 ORDER BY created_at DESC
-LIMIT $5::int
-OFFSET $4::int
+LIMIT $6::int
+OFFSET $5::int
 `
 
 type SearchGuestsParams struct {
+	UserID    int64  `json:"user_id"`
 	FullName  string `json:"full_name"`
 	Phone     string `json:"phone"`
 	Room      string `json:"room"`
@@ -159,6 +161,7 @@ type SearchGuestsParams struct {
 
 func (q *Queries) SearchGuests(ctx context.Context, arg SearchGuestsParams) ([]GuestRecord, error) {
 	rows, err := q.db.Query(ctx, searchGuests,
+		arg.UserID,
 		arg.FullName,
 		arg.Phone,
 		arg.Room,
@@ -196,16 +199,35 @@ func (q *Queries) SearchGuests(ctx context.Context, arg SearchGuestsParams) ([]G
 
 const updateGuestRecord = `-- name: UpdateGuestRecord :exec
 UPDATE guest_records
-SET check_out = $1, updated_at = NOW()
-WHERE id = $2
+SET full_name = $1,
+    phone = $2,
+    room = $3,
+    check_in = $4,
+    check_out = $5,
+    note = $6,
+    updated_at = NOW()
+WHERE id = $7
 `
 
 type UpdateGuestRecordParams struct {
+	FullName string      `json:"full_name"`
+	Phone    string      `json:"phone"`
+	Room     string      `json:"room"`
+	CheckIn  pgtype.Date `json:"check_in"`
 	CheckOut pgtype.Date `json:"check_out"`
+	Note     string      `json:"note"`
 	ID       int64       `json:"id"`
 }
 
 func (q *Queries) UpdateGuestRecord(ctx context.Context, arg UpdateGuestRecordParams) error {
-	_, err := q.db.Exec(ctx, updateGuestRecord, arg.CheckOut, arg.ID)
+	_, err := q.db.Exec(ctx, updateGuestRecord,
+		arg.FullName,
+		arg.Phone,
+		arg.Room,
+		arg.CheckIn,
+		arg.CheckOut,
+		arg.Note,
+		arg.ID,
+	)
 	return err
 }
